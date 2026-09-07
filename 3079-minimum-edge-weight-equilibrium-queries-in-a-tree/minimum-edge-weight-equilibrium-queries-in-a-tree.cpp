@@ -1,84 +1,102 @@
+const int MAXN = 20000;
+const int LIMIT = 16;
+int head[MAXN];
+int next_[MAXN * 2];
+int to[MAXN * 2];
+int val[MAXN * 2];
+int cnt = 0;
+int st[MAXN][LIMIT];
+int deep[MAXN];
+int times[MAXN][27];
+int power;
+
+int log_(int num) {
+    int ans = 0;
+    while ((1 << ans) <= (num >> 1)) {
+        ans++;
+    }
+    return ans;
+}
+
+void build(int a, int b, int c) {
+    next_[cnt] = head[a];
+    head[a] = cnt;
+    to[cnt] = b;
+    val[cnt++] = c;
+}
+
+void dfs(int cur, int fa, int v) {
+    deep[cur] = deep[fa] + 1;
+    st[cur][0] = fa;
+    for (int i = 1; i <= 26; i++) {
+        times[cur][i] = times[fa][i];
+    }
+    times[cur][v] += 1;
+    for (int p = 1; (1 << p) <= deep[cur]; p++) {
+        st[cur][p] = st[st[cur][p - 1]][p - 1];
+    }
+
+    for (int e = head[cur]; e != -1; e = next_[e]) {
+        if (to[e] != fa) {
+            dfs(to[e], cur, val[e]);
+        }
+    }
+}
+
+int lca(int a, int b) {
+    if (deep[a] < deep[b]) {
+        int t = a;
+        a = b;
+        b = t;
+    }
+    for (int p = power; p >= 0; p--) {
+        if ((1 << p) <= deep[a] && deep[st[a][p]] >= deep[b]) {
+            a = st[a][p];
+        }
+    }
+    if (a == b) {
+        return a;
+    }
+    for (int p = power; p >= 0; p--) {
+        if ((1 << p) <= deep[a] && st[a][p] != st[b][p]) {
+            a = st[a][p];
+            b = st[b][p];
+        }
+    }
+    return st[a][0];
+}
+
 class Solution {
-    using ll=long long;
 public:
-    int n;
-    int maxbits;
-    vector<vector<pair<int,int>>>adj;
-    vector<int>depth;
-    vector<vector<int>>up;
-    vector<vector<int>>f;
-
-    void dfs(int u,int v){
-        up[u][0]=v;
-
-        depth[u]=(u==0?0:depth[v]+1);
-        for(auto [nb,w]:adj[u]){
-            if(nb==v)continue;
-            f[nb]=f[u];
-            f[nb][w]+=1;
-            dfs(nb,u);
+    vector<int> minOperationsQueries(int n, vector<vector<int>>& edges,
+                                     vector<vector<int>>& queries) {
+        cnt = 0;
+        power = log_(n);
+        deep[n] = 0;
+        vector<int> ans;
+        for (int i = 0; i <= n; i++) {
+            head[i] = -1;
         }
-    }
-
-    void BinaryLifting(){
-        maxbits=log2(n)+2;
-        up.assign(n,vector<int>(maxbits));
-        depth.assign(n,-1);
-
-        dfs(0,0);
-
-        for(int j=1;j<maxbits;j++){
-            for(int i=0;i<n;i++){
-                up[i][j]=up[up[i][j-1]][j-1];
+        for (int i = 0; i <= n; i++) {
+            for (int j = 1; j <= 26; j++) {
+                times[i][j] = 0;
             }
         }
-    }
-
-    int kthAncestor(int x,int k){
-        if(depth[x]<k)return -1;
-
-        for(int j=0;j<maxbits;j++){
-            if(k&(1<<j)){
-                x=up[x][j];
-            }
+        for (vector<int>& v : edges) {
+            build(v[0], v[1], v[2]);
+            build(v[1], v[0], v[2]);
         }
-        return x;
-    }
-
-    int lca(int u, int v){
-        if(depth[u]>depth[v])u=kthAncestor(u,depth[u]-depth[v]);
-        else if(depth[u]<depth[v])v=kthAncestor(v,depth[v]-depth[u]);
-
-        if(u==v)return u;
-        for(int i=maxbits-1;i>=0;i--){
-            if(up[u][i]!=up[v][i]){
-                u=up[u][i];
-                v=up[v][i];
+        dfs(0, n, 0);
+        for (vector<int>& v : queries) {
+            int point = lca(v[0], v[1]);
+            int max_ = 0;
+            int all = 0;
+            for (int i = 1; i <= 26; i++) {
+                max_ = max(max_, times[v[0]][i] + times[v[1]][i] -
+                                     2 * times[point][i]);
+                all += times[v[0]][i] + times[v[1]][i] - 2 * times[point][i];
             }
-        }
-        return up[u][0];
-    }
-    vector<int> minOperationsQueries(int N, vector<vector<int>>& edges, vector<vector<int>>& queries) {
-        n=N;
-        adj.assign(n,{});
-        for(auto &e:edges){
-            adj[e[0]].push_back({e[1],e[2]});
-            adj[e[1]].push_back({e[0],e[2]});
-        }
-        
-        f.assign(n,vector<int>(27,0));
-        BinaryLifting();
-        
-        vector<int>ans;
-        for(auto q:queries){
-            int l=lca(q[0],q[1]);
-
-            int maxi=0;
-            int d=depth[q[0]]+depth[q[1]]-2*depth[l];
-            for(int i=0;i<27;i++){
-                maxi=max(maxi,f[q[0]][i]+f[q[1]][i]-2*f[l][i]);
-            }
-            ans.push_back(d-maxi);
+            ans.push_back(all - max_);
         }
         return ans;
     }
